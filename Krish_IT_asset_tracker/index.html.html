@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IT Asset Tracker – Demo (HTML + Tailwind + Vanilla JS + CSV Import)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          boxShadow: {
+            soft: '0 10px 30px -12px rgba(0,0,0,0.25)'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* nicer scrollbars */
+    * { scrollbar-width: thin; scrollbar-color: #a3a3a3 transparent; }
+    *::-webkit-scrollbar { height: 8px; width: 8px; }
+    *::-webkit-scrollbar-thumb { background: #a3a3a3; border-radius: 999px; }
+    .collapsible[open] .tw-caret { transform: rotate(90deg); }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <!-- App Shell -->
+  <div class="min-h-dvh flex flex-col">
+    <!-- Header -->
+    <header class="sticky top-0 z-40 backdrop-blur bg-white/70 border-b border-slate-200">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-4">
+        <div class="flex items-center gap-3">
+          <div class="h-10 w-10 grid place-items-center rounded-xl bg-slate-900 text-white font-bold">IT</div>
+          <div>
+            <h1 class="text-xl sm:text-2xl font-semibold leading-tight">Asset Tracker</h1>
+            <p class="text-xs text-slate-500">Self-contained HTML • Tailwind • Vanilla JS</p>
+          </div>
+        </div>
+        <div class="ml-auto flex items-center gap-2 sm:gap-3">
+          <input id="file-input" type="file" accept=".csv" class="hidden" />
+          <button id="btn-upload" class="px-3 py-2 rounded-xl bg-indigo-600 text-white text-sm hover:opacity-90 active:scale-[.98] transition">
+            Upload CSV
+          </button>
+          <button id="btn-reset" class="px-3 py-2 rounded-xl bg-white border text-sm hover:bg-slate-50">Reset Data</button>
+          <button id="btn-add-demo" class="px-3 py-2 rounded-xl bg-slate-900 text-white text-sm hover:opacity-90 active:scale-[.98] transition">
+            + Add 5 Demo Assets
+          </button>
+          <button id="btn-refresh-now" class="px-3 py-2 rounded-xl bg-white border text-sm hover:bg-slate-50">Refresh Now</button>
+          <div class="flex items-center gap-2 text-sm">
+            <label for="refresh-interval" class="text-slate-600">Auto‑refresh</label>
+            <select id="refresh-interval" class="px-2 py-2 rounded-lg border bg-white">
+              <option value="0">Off</option>
+              <option value="5">Every 5s</option>
+              <option value="10">Every 10s</option>
+              <option value="30">Every 30s</option>
+              <option value="60">Every 60s</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <!-- Import Banner / Toast Area -->
+      <div id="import-banner" class="hidden">
+        <!-- filled dynamically -->
+      </div>
+    </header>
+
+    <!-- Summary Bar -->
+    <section class="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-4">
+      <div id="summary" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"></div>
+    </section>
+
+    <!-- Main -->
+    <main class="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pb-24 flex flex-col lg:flex-row gap-6">
+      <!-- Grid -->
+      <section class="flex-1 min-w-0">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-lg font-semibold">Assets</h2>
+          <div class="text-sm text-slate-500">Last render: <span id="last-render">—</span></div>
+        </div>
+        <div id="asset-grid" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"></div>
+      </section>
+
+      <!-- Side Panels -->
+      <aside class="w-full lg:w-[360px] xl:w-[400px] space-y-6">
+        <!-- Alerts Panel -->
+        <div class="bg-white rounded-2xl border shadow-soft">
+          <div class="px-4 py-3 border-b flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5 text-amber-500" fill="currentColor"><path d="M10.29 3.86a2 2 0 0 1 3.42 0l7.57 13.1A2 2 0 0 1 19.57 20H4.43a2 2 0 0 1-1.71-3.04l7.57-13.1Z"/><path d="M12 9v4" class="text-white"/><circle cx="12" cy="17" r="1.2" class="text-white"/></svg>
+            <h3 class="font-semibold">Alerts</h3>
+            <div id="alert-count" class="ml-auto text-xs text-slate-500">0</div>
+          </div>
+          <div id="alerts" class="max-h-[50dvh] overflow-auto divide-y"></div>
+        </div>
+
+        <!-- Smart Assistant -->
+        <div class="bg-white rounded-2xl border shadow-soft">
+          <div class="px-4 py-3 border-b flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5 text-indigo-600" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v3m0 12v3m9-9h-3M6 12H3m13.95-6.95-2.12 2.12M6.17 17.83l-2.12 2.12m12.02 0-2.12-2.12M6.17 6.17 4.05 4.05"/></svg>
+            <h3 class="font-semibold">Smart Assistant</h3>
+          </div>
+          <div id="assistant" class="p-4 space-y-3"></div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <!-- Templates -->
+  <template id="tpl-summary-card">
+    <div class="bg-white rounded-2xl border shadow-soft p-4 flex items-center gap-3">
+      <div class="rounded-xl p-2 bg-slate-100" data-pill></div>
+      <div>
+        <div class="text-xs text-slate-500" data-label></div>
+        <div class="text-2xl font-semibold leading-tight" data-value>0</div>
+      </div>
+      <div class="ml-auto text-right text-xs text-slate-500" data-sub></div>
+    </div>
+  </template>
+
+  <template id="tpl-asset-card">
+    <div class="bg-white rounded-2xl border shadow-soft p-4 flex flex-col gap-3">
+      <div class="flex items-center gap-2">
+        <div class="font-semibold" data-asset-id></div>
+        <div class="ml-auto flex items-center gap-1 text-xs" data-chip-row></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 text-sm">
+        <div><div class="text-slate-500 text-xs">Type</div><div data-type class="font-medium"></div></div>
+        <div><div class="text-slate-500 text-xs">Assigned User</div><div data-user class="font-medium truncate"></div></div>
+        <div><div class="text-slate-500 text-xs">Patch Status</div><div data-patch class="font-medium"></div></div>
+        <div><div class="text-slate-500 text-xs">OS Status</div><div data-os class="font-medium"></div></div>
+        <div class="col-span-2"><div class="text-slate-500 text-xs">Last Updated</div><div data-updated class="font-medium"></div></div>
+      </div>
+      <div class="flex flex-wrap gap-2 pt-1">
+        <button data-action="assign" class="px-2.5 py-1.5 text-xs rounded-lg border hover:bg-slate-50">Assign</button>
+        <button data-action="unassign" class="px-2.5 py-1.5 text-xs rounded-lg border hover:bg-slate-50">Unassign</button>
+        <button data-action="patch" class="px-2.5 py-1.5 text-xs rounded-lg border hover:bg-slate-50">Mark Patch Applied</button>
+        <button data-action="os" class="px-2.5 py-1.5 text-xs rounded-lg border hover:bg-slate-50">Mark OS Up‑to‑date</button>
+        <button data-action="flag" class="px-2.5 py-1.5 text-xs rounded-lg border hover:bg-amber-50">Flag Replacement</button>
+        <button data-action="retire" class="px-2.5 py-1.5 text-xs rounded-lg border text-rose-600 hover:bg-rose-50">Retire</button>
+      </div>
+    </div>
+  </template>
+
+  <template id="tpl-alert">
+    <div class="px-4 py-3 flex items-start gap-3">
+      <div data-icon class="mt-0.5"></div>
+      <div class="min-w-0">
+        <div class="text-sm font-medium" data-title></div>
+        <div class="text-xs text-slate-600" data-reason></div>
+      </div>
+      <button class="ml-auto text-xs underline" data-cta></button>
+    </div>
+  </template>
+
+  <template id="tpl-assistant-item">
+    <div class="p-3 rounded-xl border">
+      <div class="text-sm font-medium" data-title></div>
+      <div class="text-xs text-slate-600 mt-0.5" data-desc></div>
+      <div class="flex flex-wrap gap-2 mt-2" data-actions></div>
+    </div>
+  </template>
+
+  <script>
+    // -------------------------------
+    // Utilities
+    // -------------------------------
+    const $ = (sel, root=document) => root.querySelector(sel);
+    const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+    const fmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    const uid = () => Math.random().toString(36).slice(2, 8).toUpperCase();
+
+    const STORAGE_KEY = 'it_asset_tracker_v1';
+    const SEED_KEY = STORAGE_KEY + '_seed';
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return { assets: [], settings: { interval: 0 } };
+        const data = JSON.parse(raw);
+        data.assets = data.assets || [];
+        data.settings = data.settings || { interval: 0 };
+        return data;
+      } catch (e) {
+        console.warn('Failed to load state', e);
+        return { assets: [], settings: { interval: 0 } };
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function nowISO() { return new Date().toISOString(); }
+
+    function daysBetween(aISO, bISO) {
+      const a = new Date(aISO), b = new Date(bISO);
+      return Math.floor((b - a) / (1000*60*60*24));
+    }
+
+    function badge(text, tone='slate') {
+      const map = {
+        slate: 'bg-slate-100 text-slate-700',
+        green: 'bg-emerald-100 text-emerald-700',
+        red: 'bg-rose-100 text-rose-700',
+        amber: 'bg-amber-100 text-amber-800',
+        blue: 'bg-sky-100 text-sky-700',
+        purple: 'bg-violet-100 text-violet-700'
+      };
+      return `<span class="px-2 py-0.5 rounded-lg text-[11px] font-medium ${map[tone]||map.slate}">${text}</span>`;
+    }
+
+    function choice(arr) { return arr[Math.floor(Math.random()*arr.length)]; }
+
+    // -------------------------------
+    // Data Model
+    // -------------------------------
+    let state = loadState();
+
+    const TYPES = ['Laptop', 'Mobile Phone', 'Tablet'];
+    const STATUS = ['provisioned', 'assigned', 'up-for-replacement', 'retired'];
+    const PATCH = ['applied', 'pending'];
+    const OSSTAT = ['up-to-date', 'pending'];
+
+    function generateRandomAsset() {
+      const type = choice(TYPES);
+      const id = `${type[0]}-${uid()}`;
+      const ageDays = Math.floor(Math.random() * 900); // up to ~2.5 years
+      const assigned = Math.random() < 0.7 ? randomUser() : '';
+      const status = assigned ? 'assigned' : 'provisioned';
+      const patchStatus = Math.random() < 0.75 ? 'applied' : 'pending';
+      const osStatus = Math.random() < 0.7 ? 'up-to-date' : 'pending';
+      const flagged = Math.random() < 0.15;
+      const created = new Date(Date.now() - ageDays * 86400000).toISOString();
+      const lastActive = new Date(Date.now() - Math.floor(Math.random()*60)*86400000).toISOString();
+      return {
+        id, type, status: flagged ? 'up-for-replacement' : status,
+        patchStatus, osStatus,
+        assignedUser: assigned,
+        lastUpdated: nowISO(),
+        createdAt: created,
+        lastActiveAt: lastActive,
+      };
+    }
+
+    function randomUser() {
+      const first = ['Alex','Sam','Jordan','Casey','Taylor','Riley','Jamie','Morgan','Priya','Dev','Anita','Rahul','Neha','Arun','Meera'];
+      const last = ['Patel','Nguyen','Garcia','Brown','Kumar','Sharma','Iyer','Nair','Lee','Kim','Singh','Das'];
+      return `${choice(first)} ${choice(last)}`;
+    }
+
+    // Keep a synthetic seed for Reset
+    function ensureSeed() {
+      let seed = localStorage.getItem(SEED_KEY);
+      if (!seed) {
+        const assets = Array.from({length: 12}, () => generateRandomAsset());
+        localStorage.setItem(SEED_KEY, JSON.stringify(assets));
+        seed = JSON.stringify(assets);
+      }
+      return JSON.parse(seed);
+    }
+
+    function resetToSeed() {
+      state.assets = ensureSeed().map(a => ({...a}));
+      state.settings = { interval: 0 };
+      saveState();
+      setIntervalFromSetting();
+      render();
+      showBanner({
+        ok: true,
+        message: 'Reset to default synthetic dataset.',
+      });
+    }
+
+    // -------------------------------
+    // Rendering
+    // -------------------------------
+    function render() {
+      renderSummary();
+      renderGrid();
+      renderAlerts();
+      renderAssistant();
+      $('#last-render').textContent = fmt.format(new Date());
+      saveState();
+    }
+
+    function renderSummary() {
+      const wrap = $('#summary');
+      wrap.innerHTML = '';
+      const tpl = $('#tpl-summary-card');
+      const s = summarize();
+      const items = [
+        { label:'Total Assets', val: s.total, sub: `${s.assigned} assigned · ${s.unassigned} unassigned`, pill:'🔢' },
+        { label:'By Type', val: `${s.byType['Laptop']||0}/${s.byType['Mobile Phone']||0}/${s.byType['Tablet']||0}`, sub:'Laptops / Phones / Tablets', pill:'💼' },
+        { label:'Health (Patches)', val: s.pendingPatches, sub:'Pending patches', pill:'🩹' },
+        { label:'Health (OS)', val: s.pendingOS, sub:'Pending OS updates', pill:'🖥️' },
+      ];
+      items.forEach(it => {
+        const node = tpl.content.cloneNode(true);
+        $('[data-label]', node).textContent = it.label;
+        $('[data-value]', node).textContent = it.val;
+        $('[data-sub]', node).textContent = it.sub;
+        $('[data-pill]', node).textContent = it.pill;
+        wrap.appendChild(node);
+      });
+    }
+
+    function summarize() {
+      const byType = {};
+      let pendingPatches = 0, pendingOS = 0, total = state.assets.length;
+      let assigned = 0, unassigned = 0, replacement = 0;
+      state.assets.forEach(a => {
+        byType[a.type] = (byType[a.type]||0)+1;
+        if (a.patchStatus === 'pending') pendingPatches++;
+        if (a.osStatus === 'pending') pendingOS++;
+        if (a.status === 'assigned') assigned++; else if (a.status !== 'retired') unassigned++;
+        if (a.status === 'up-for-replacement') replacement++;
+      });
+      return { byType, pendingPatches, pendingOS, total, assigned, unassigned, replacement };
+    }
+
+    function renderGrid() {
+      const grid = $('#asset-grid');
+      grid.innerHTML = '';
+      const tpl = $('#tpl-asset-card');
+      state.assets.forEach((a, idx) => {
+        const node = tpl.content.cloneNode(true);
+        $('[data-asset-id]', node).textContent = a.id;
+
+        const chipRow = $('[data-chip-row]', node);
+        chipRow.innerHTML = [
+          badge(a.status, a.status==='assigned'?'green':a.status==='retired'?'red':a.status==='up-for-replacement'?'amber':'slate'),
+          badge(a.patchStatus==='applied'?'Patched':'Patch Pending', a.patchStatus==='applied'?'green':'amber'),
+          badge(a.osStatus==='up-to-date'?'OS OK':'OS Pending', a.osStatus==='up-to-date'?'blue':'amber')
+        ].join(' ');
+
+        $('[data-type]', node).textContent = a.type;
+        $('[data-user]', node).textContent = a.assignedUser || '—';
+        $('[data-patch]', node).textContent = a.patchStatus;
+        $('[data-os]', node).textContent = a.osStatus;
+        $('[data-updated]', node).textContent = fmt.format(new Date(a.lastUpdated));
+
+        // wire actions
+        $$('[data-action]', node).forEach(btn => {
+          btn.addEventListener('click', () => handleAction(btn.getAttribute('data-action'), idx));
+        });
+        grid.appendChild(node);
+      });
+
+      if (state.assets.length === 0) {
+        grid.innerHTML = `<div class="p-8 text-center bg-white rounded-2xl border">
+          <div class="text-lg font-medium mb-1">No assets yet</div>
+          <div class="text-slate-600 text-sm mb-3">Click “Upload CSV” to import assets, or “Add 5 Demo Assets” to populate with sample data.</div>
+        </div>`;
+      }
+    }
+
+    function renderAlerts() {
+      const list = $('#alerts');
+      const tpl = $('#tpl-alert');
+      list.innerHTML = '';
+      const alerts = computeAlerts();
+      $('#alert-count').textContent = alerts.length;
+      alerts.forEach(al => {
+        const node = tpl.content.cloneNode(true);
+        const icon = $('[data-icon]', node);
+        icon.innerHTML = al.icon;
+        $('[data-title]', node).textContent = al.title;
+        $('[data-reason]', node).textContent = al.reason;
+        const cta = $('[data-cta]', node);
+        cta.textContent = al.ctaLabel || '';
+        if (al.onClick) cta.addEventListener('click', al.onClick);
+        else cta.classList.add('hidden');
+        list.appendChild(node);
+      });
+
+      if (alerts.length === 0) {
+        list.innerHTML = `<div class="px-4 py-5 text-sm text-slate-600">No alerts right now. 🎉</div>`;
+      }
+    }
+
+    function renderAssistant() {
+      const wrap = $('#assistant');
+      const tpl = $('#tpl-assistant-item');
+      wrap.innerHTML = '';
+      const suggestions = computeAssistantSuggestions();
+      suggestions.forEach(sg => {
+        const node = tpl.content.cloneNode(true);
+        $('[data-title]', node).textContent = sg.title;
+        $('[data-desc]', node).textContent = sg.desc;
+        const actions = $('[data-actions]', node);
+        sg.actions.forEach(a => {
+          const btn = document.createElement('button');
+          btn.textContent = a.label;
+          btn.className = 'px-2.5 py-1.5 text-xs rounded-lg border hover:bg-slate-50';
+          btn.addEventListener('click', a.onClick);
+          actions.appendChild(btn);
+        });
+        wrap.appendChild(node);
+      });
+
+      if (suggestions.length === 0) {
+        wrap.innerHTML = `<div class="text-sm text-slate-600">No suggestions at the moment. Check back after auto‑refresh cycles.</div>`;
+      }
+    }
+
+    // -------------------------------
+    // Alerts & Assistant Logic
+    // -------------------------------
+    function computeAlerts() {
+      const alerts = [];
+      const now = nowISO();
+      // Overdue OS updates (pending for > 14 days since lastUpdated)
+      state.assets.filter(a => a.osStatus==='pending' && daysBetween(a.lastUpdated, now) > 14)
+        .forEach(a => alerts.push({
+          title: `Overdue OS update: ${a.id}`,
+          reason: `OS pending for ${daysBetween(a.lastUpdated, now)} days. Device type: ${a.type}.`,
+          icon: iconWarn(),
+          ctaLabel: 'Mark Up‑to‑date',
+          onClick: () => { a.osStatus='up-to-date'; a.lastUpdated=nowISO(); render(); }
+        }));
+
+      // Unassigned devices idle > 30 days
+      state.assets.filter(a => (!a.assignedUser || a.status!=='assigned') && daysBetween(a.lastActiveAt, now) > 30 && a.status!=='retired')
+        .forEach(a => alerts.push({
+          title: `Idle & unassigned: ${a.id}`,
+          reason: `Not assigned and idle for ${daysBetween(a.lastActiveAt, now)} days. Consider reassigning or retiring.`,
+          icon: iconInfo(),
+          ctaLabel: 'Assign…',
+          onClick: () => assignAsset(a)
+        }));
+
+      // Assets flagged for replacement
+      state.assets.filter(a => a.status==='up-for-replacement')
+        .forEach(a => alerts.push({
+          title: `Flagged for replacement: ${a.id}`,
+          reason: `Type: ${a.type}. Last updated ${fmt.format(new Date(a.lastUpdated))}.`,
+          icon: iconBell(),
+          ctaLabel: 'Schedule → Retire',
+          onClick: () => { if (confirm('Retire this asset now?')) { a.status='retired'; a.assignedUser=''; a.lastUpdated=nowISO(); render(); } }
+        }));
+
+      return alerts;
+    }
+
+    function computeAssistantSuggestions() {
+      const sugs = [];
+      const pendingOS = state.assets.filter(a => a.osStatus==='pending' && a.status!=='retired');
+      if (pendingOS.length >= 3) {
+        sugs.push({
+          title: 'Bulk OS update recommended',
+          desc: `${pendingOS.length} devices have pending OS updates.`,
+          actions: [ { label: 'Mark All OS Up‑to‑date', onClick: bulkUpdateOS } ]
+        });
+      }
+
+      const idleUnassigned = state.assets.filter(a => (!a.assignedUser || a.status!=='assigned') && a.status!=='retired' && daysBetween(a.lastActiveAt, nowISO()) > 30);
+      if (idleUnassigned.length) {
+        sugs.push({
+          title: 'Reassign idle devices',
+          desc: `${idleUnassigned.length} devices are unassigned and idle for >30 days.`,
+          actions: [ { label: 'Assign All…', onClick: () => reassignIdleAssets(idleUnassigned) } ]
+        });
+      }
+
+      const flagged = state.assets.filter(a => a.status==='up-for-replacement');
+      if (flagged.length) {
+        sugs.push({
+          title: 'Schedule replacements',
+          desc: `${flagged.length} devices are flagged for replacement.`,
+          actions: [ { label: 'Retire Flagged', onClick: scheduleReplacements } ]
+        });
+      }
+
+      if (state.assets.some(a => a.patchStatus==='pending' && a.status!=='retired')) {
+        sugs.push({
+          title: 'Apply pending patches',
+          desc: 'Some devices need patches applied.',
+          actions: [ { label: 'Mark All Patched', onClick: markAllPatched } ]
+        });
+      }
+
+      return sugs;
+    }
+
+    // -------------------------------
+    // Actions
+    // -------------------------------
+    function handleAction(action, idx) {
+      const a = state.assets[idx];
+      if (!a) return;
+      switch(action) {
+        case 'assign': assignAsset(a); break;
+        case 'unassign': if (confirm(`Unassign ${a.id}?`)) { a.assignedUser=''; a.status='provisioned'; a.lastUpdated=nowISO(); render(); } break;
+        case 'patch': a.patchStatus='applied'; a.lastUpdated=nowISO(); render(); break;
+        case 'os': a.osStatus='up-to-date'; a.lastUpdated=nowISO(); render(); break;
+        case 'flag': a.status='up-for-replacement'; a.lastUpdated=nowISO(); render(); break;
+        case 'retire': if (confirm(`Retire ${a.id}? This cannot be easily undone.`)) { a.status='retired'; a.assignedUser=''; a.lastUpdated=nowISO(); render(); } break;
+      }
+    }
+
+    function assignAsset(a) {
+      const name = prompt(`Assign ${a.id} to which user?`, a.assignedUser || '');
+      if (name===null) return;
+      a.assignedUser = name.trim();
+      a.status = a.assignedUser ? 'assigned' : 'provisioned';
+      a.lastUpdated = nowISO();
+      render();
+    }
+
+    function bulkUpdateOS() {
+      if (!confirm('Mark OS up‑to‑date on all pending devices?')) return;
+      state.assets.forEach(a => { if (a.osStatus==='pending' && a.status!=='retired') { a.osStatus='up-to-date'; a.lastUpdated=nowISO(); } });
+      render();
+    }
+
+    function reassignIdleAssets(list) {
+      const defaultName = 'Shared Pool';
+      if (!confirm(`Assign ${list.length} idle devices to "${defaultName}"?`)) return;
+      list.forEach(a => { a.assignedUser = defaultName; a.status='assigned'; a.lastUpdated=nowISO(); });
+      render();
+    }
+
+    function scheduleReplacements() {
+      if (!confirm('Retire all devices flagged for replacement?')) return;
+      state.assets.forEach(a => { if (a.status==='up-for-replacement') { a.status='retired'; a.assignedUser=''; a.lastUpdated=nowISO(); } });
+      render();
+    }
+
+    function markAllPatched() {
+      if (!confirm('Mark all pending patches as applied?')) return;
+      state.assets.forEach(a => { if (a.patchStatus==='pending' && a.status!=='retired') { a.patchStatus='applied'; a.lastUpdated=nowISO(); } });
+      render();
+    }
+
+    // -------------------------------
+    // CSV Import
+    // -------------------------------
+    const REQUIRED_COLS = ['asset_id','type','status','patch_status','os_status','assigned_user','last_updated'];
+    const OPTIONAL_COLS = ['department','device_age_months','last_os_update'];
+
+    function parseCSV(text) {
+      // RFC4180-style minimal parser for commas and quotes
+      const rows = [];
+      let i=0, field='', row=[], inQuotes=false;
+      while (i < text.length) {
+        const ch = text[i];
+        if (inQuotes) {
+          if (ch === '"') {
+            if (text[i+1] === '"') { field += '"'; i++; } else { inQuotes = false; }
+          } else { field += ch; }
+        } else {
+          if (ch === '"') inQuotes = true;
+          else if (ch === ',') { row.push(field); field=''; }
+          else if (ch === '\n') { row.push(field); rows.push(row); row=[]; field=''; }
+          else if (ch === '\r') { /* ignore */ }
+          else { field += ch; }
+        }
+        i++;
+      }
+      // last field
+      if (field.length>0 || text[text.length-1]===',') row.push(field);
+      if (row.length) rows.push(row);
+      return rows.filter(r => r.some(c => c.trim()!==''));
+    }
+
+    function normalizeHeader(name){
+      return name.trim().toLowerCase();
+    }
+
+    function parseDateFlexible(s){
+      if (!s) return null;
+      const t = s.trim();
+      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(t)) {
+        const d = new Date(t.replace(' ', 'T'));
+        return isNaN(d) ? null : d;
+      }
+      const d2 = new Date(t);
+      return isNaN(d2) ? null : d2;
+    }
+
+    function showBanner({ok, message, errors}){
+      const host = $('#import-banner');
+      const tone = ok ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-200 text-amber-900';
+      const icon = ok ? '✅' : '⚠️';
+      const details = (errors && errors.length) ? `
+        <details class="collapsible group border-t px-4 py-3 open:bg-white/40">
+          <summary class="cursor-pointer text-sm select-none flex items-center gap-2">
+            <span class="tw-caret transition-transform">▶</span>
+            <span class="underline">Show error details (${errors.length})</span>
+          </summary>
+          <ul class="mt-2 list-disc pl-6 space-y-1 text-sm">
+            ${errors.map(e => `<li><span class="font-mono text-xs">row ${e.row}</span> — ${e.msg}</li>`).join('')}
+          </ul>
+        </details>` : '';
+      host.innerHTML = `
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <div class="rounded-2xl border ${tone} px-4 py-3 flex items-start gap-3 shadow-soft">
+            <div class="text-xl">${icon}</div>
+            <div class="min-w-0">
+              <div class="text-sm font-medium">${message}</div>
+              ${details}
+            </div>
+            <button id="dismiss-banner" class="ml-auto text-sm underline">Dismiss</button>
+          </div>
+        </div>`;
+      host.classList.remove('hidden');
+      $('#dismiss-banner').onclick = () => { host.classList.add('hidden'); host.innerHTML=''; };
+    }
+
+    function importCSVText(text){
+      const rows = parseCSV(text);
+      if (!rows.length) { showBanner({ok:false, message:'No rows found in CSV.'}); return; }
+      const header = rows[0].map(normalizeHeader);
+      const map = Object.fromEntries(header.map((h, idx) => [h, idx]));
+
+      // Validate required headers
+      const missingHeaders = REQUIRED_COLS.filter(c => map[c]===undefined);
+      if (missingHeaders.length) {
+        showBanner({ ok:false, message:`Missing required column(s): ${missingHeaders.join(', ')}.` });
+        return;
+      }
+
+      const errors = [];
+      const imported = [];
+      const allowedTypeVals = ['laptop','mobile','tablet'];
+      const typeMap = { laptop:'Laptop', mobile:'Mobile Phone', tablet:'Tablet' };
+
+      for (let r=1; r<rows.length; r++){
+        const raw = rows[r];
+        const rowNum = r+1; // human counting
+        const get = (name) => (raw[map[name]] ?? '').trim();
+
+        // Collect fields
+        const asset_id = get('asset_id');
+        const typeRaw = get('type').toLowerCase();
+        const status = get('status').toLowerCase();
+        const patch_status = get('patch_status').toLowerCase();
+        const os_status = get('os_status').toLowerCase();
+        let assigned_user = get('assigned_user');
+        const last_updated_raw = get('last_updated');
+
+        // Required validations
+        if (!asset_id) { errors.push({row: rowNum, msg:'Missing asset_id'}); continue; }
+        if (!typeRaw || !allowedTypeVals.includes(typeRaw)) { errors.push({row: rowNum, msg:`Invalid type: "${get('type')}"`}); continue; }
+        if (!STATUS.includes(status)) { errors.push({row: rowNum, msg:`Invalid status: "${get('status')}"`}); continue; }
+        if (!PATCH.includes(patch_status)) { errors.push({row: rowNum, msg:`Invalid patch_status: "${get('patch_status')}"`}); continue; }
+        if (!OSSTAT.includes(os_status)) { errors.push({row: rowNum, msg:`Invalid os_status: "${get('os_status')}"`}); continue; }
+        const lastUpdatedDate = parseDateFlexible(last_updated_raw);
+        if (!lastUpdatedDate) { errors.push({row: rowNum, msg:`Invalid last_updated datetime: "${last_updated_raw}"`}); continue; }
+
+        // Optional
+        const department = map['department']!==undefined ? get('department') : '';
+        const device_age_months_raw = map['device_age_months']!==undefined ? get('device_age_months') : '';
+        let device_age_months = undefined;
+        if (device_age_months_raw !== '') {
+          const n = Number(device_age_months_raw);
+          if (Number.isNaN(n)) { errors.push({row: rowNum, msg:`Non-numeric device_age_months: "${device_age_months_raw}"`}); continue; }
+          device_age_months = n;
+        }
+        const last_os_update_raw = map['last_os_update']!==undefined ? get('last_os_update') : '';
+        let last_os_update = undefined;
+        if (last_os_update_raw !== '') {
+          const d = parseDateFlexible(last_os_update_raw);
+          if (!d) { errors.push({row: rowNum, msg:`Invalid last_os_update datetime: "${last_os_update_raw}"`}); continue; }
+          last_os_update = d.toISOString();
+        }
+
+        // Assigned user handling: treat empty or 'unassigned' (any case) as unassigned
+        if (!assigned_user || assigned_user.toLowerCase()==='unassigned') assigned_user = '';
+
+        // Map to app model
+        const asset = {
+          id: asset_id,
+          type: typeMap[typeRaw],
+          status,
+          patchStatus: patch_status,
+          osStatus: os_status,
+          assignedUser: assigned_user,
+          lastUpdated: lastUpdatedDate.toISOString(),
+          createdAt: nowISO(),
+          lastActiveAt: nowISO(),
+        };
+        // Attach optional metadata for potential future use
+        if (department) asset.department = department;
+        if (device_age_months !== undefined) asset.deviceAgeMonths = device_age_months;
+        if (last_os_update) asset.lastOSUpdate = last_os_update;
+
+        imported.push(asset);
+      }
+
+      if (!imported.length) {
+        showBanner({ ok:false, message:`All rows invalid. Kept existing data unchanged.`, errors });
+        return;
+      }
+
+      // Merge: append imported assets to current list
+      state.assets.push(...imported);
+      render();
+      showBanner({ ok:true, message:`Imported ${imported.length} asset(s), skipped ${errors.length} invalid row(s).`, errors });
+    }
+
+    // -------------------------------
+    // Auto-Refresh Simulation
+    // -------------------------------
+    let timer = null;
+
+    function setIntervalFromSetting() {
+      const sec = Number(state.settings.interval || 0);
+      $('#refresh-interval').value = String(sec);
+      if (timer) { clearInterval(timer); timer = null; }
+      if (sec > 0) {
+        timer = setInterval(() => { simulateAutoUpdate(); render(); }, sec * 1000);
+      }
+    }
+
+    function simulateAutoUpdate() {
+      // Randomly flip some statuses to simulate drift
+      state.assets.forEach(a => {
+        if (a.status==='retired') return;
+        if (Math.random() < 0.04) a.patchStatus = 'pending';
+        if (Math.random() < 0.05) a.osStatus = 'pending';
+        if (Math.random() < 0.03) a.lastActiveAt = new Date(Math.min(Date.now(), new Date(a.lastActiveAt).getTime()) - 86400000).toISOString(); // drift older
+        if (Math.random() < 0.02) a.status = 'up-for-replacement';
+        if (Math.random() < 0.02) a.status = 'assigned';
+        if (Math.random() < 0.015) a.status = 'provisioned';
+        if (Math.random() < 0.1) a.lastUpdated = nowISO();
+      });
+    }
+
+    // -------------------------------
+    // Wiring & Boot
+    // -------------------------------
+    $('#btn-add-demo').addEventListener('click', () => {
+      for (let i=0;i<5;i++) state.assets.push(generateRandomAsset());
+      render();
+    });
+
+    $('#btn-refresh-now').addEventListener('click', () => { simulateAutoUpdate(); render(); });
+
+    $('#refresh-interval').addEventListener('change', (e) => {
+      state.settings.interval = Number(e.target.value || 0);
+      saveState();
+      setIntervalFromSetting();
+    });
+
+    $('#btn-upload').addEventListener('click', () => $('#file-input').click());
+    $('#file-input').addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      if (!file.name.toLowerCase().endsWith('.csv')) {
+        showBanner({ok:false, message:'Please select a .csv file.'});
+        e.target.value = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          importCSVText(String(evt.target.result||''));
+        } catch (err) {
+          console.error(err);
+          showBanner({ok:false, message:'Failed to parse CSV. Ensure it has a header row and valid data.'});
+        } finally {
+          e.target.value = '';
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    $('#btn-reset').addEventListener('click', () => {
+      if (confirm('Reset to the default synthetic dataset? This will discard current changes.')) resetToSeed();
+    });
+
+    // Boot: ensure arrays exist and seed defaults on first load
+    state.assets = Array.isArray(state.assets) ? state.assets : [];
+    state.settings = state.settings || { interval: 0 };
+
+    // If first run (no prior state), prime with seed
+    if (!localStorage.getItem(STORAGE_KEY)) {
+      state.assets = ensureSeed().map(a => ({...a}));
+      saveState();
+    }
+
+    render();
+    setIntervalFromSetting();
+
+    // -------------------------------
+    // Icons (inline SVG strings)
+    // -------------------------------
+    function iconWarn(){
+      return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5 text-amber-600" fill="currentColor"><path d="M10.29 3.86a2 2 0 0 1 3.42 0l7.57 13.1A2 2 0 0 1 19.57 20H4.43a2 2 0 0 1-1.71-3.04l7.57-13.1Z"/><path d="M12 9v4" class="text-white"/><circle cx="12" cy="17" r="1.2" class="text-white"/></svg>'
+    }
+    function iconInfo(){
+      return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5 text-sky-600" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h2v4h-2"/></svg>'
+    }
+    function iconBell(){
+      return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5 text-violet-600" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14.24 17.24H4.5l1.2-1.2a8 8 0 1 1 13.6-3.47v.68c0 .66.26 1.29.73 1.76l.97.97h-6.76"/><path d="M9 17.24a3 3 0 0 0 6 0"/></svg>'
+    }
+  </script>
+</body>
+</html>
